@@ -4,7 +4,7 @@
 #include "pico/stdlib.h"
 #include "pico_lcd.h"
 
-#define CELL_SIZE 5
+#define CELL_SIZE 8
 
 struct _section;
 
@@ -39,6 +39,14 @@ static void snake_fill_cell(uint8_t x, uint8_t y, uint16_t color) {
     pico_lcd_fill_rect(x*CELL_SIZE, (x+1)*CELL_SIZE - 1, y*CELL_SIZE, (y+1)*CELL_SIZE - 1, color);
 }
 
+static void snake_randomize_apple(void) {
+    applex = time_us_32() % FIELD_WIDTH;
+    // two consequtive calls to `time_us_32` would always be very similar,
+    // so XOR it with some random value
+    appley = (time_us_32() ^ 0x5F26A193) % FIELD_HEIGHT;
+    snake_fill_cell(applex, appley, COLOR_APPLE);
+}
+
 static void snake_start(void) {
     pico_lcd_clear();
 
@@ -71,9 +79,7 @@ static void snake_start(void) {
     diry = 0;
     state = STATE_RUN;
 
-    applex = 10;
-    appley = 10;
-    snake_fill_cell(applex, appley, COLOR_APPLE);
+    snake_randomize_apple();
 
     printf("Snake starts with %d sections\n", length);
 }
@@ -118,16 +124,17 @@ static void snake_run(void) {
     }
     // state == STATE_RUN
 
-    if (pico_lcd_is_pressed(KEY_LEFT)) {
+    // only allow 90 degree turns
+    if (pico_lcd_is_pressed(KEY_LEFT) && diry != 0) {
         dirx = -1;
         diry = 0;
-    } else if (pico_lcd_is_pressed(KEY_RIGHT)) {
+    } else if (pico_lcd_is_pressed(KEY_RIGHT) && diry != 0) {
         dirx = 1;
         diry = 0;
-    } else if (pico_lcd_is_pressed(KEY_UP)) {
+    } else if (pico_lcd_is_pressed(KEY_UP) && dirx != 0) {
         dirx = 0;
         diry = -1;
-    } else if (pico_lcd_is_pressed(KEY_DOWN)) {
+    } else if (pico_lcd_is_pressed(KEY_DOWN) && dirx != 0) {
         dirx = 0;
         diry = 1;
     }
@@ -144,20 +151,13 @@ static void snake_run(void) {
     if (newx == applex && newy == appley) {
         // grow new section
         new_head = malloc(sizeof(section_t));
-        // TODO: Randomize
-        if (applex == 10) {
-            applex = 15;
-            appley = 15;
-        } else if (applex == 15) {
-            applex = 20;
-            appley = 20;
-        }
-        snake_fill_cell(applex, appley, COLOR_APPLE);
+        snake_randomize_apple();
         length += 1;
         printf("Snake has %d sections\n", length);
     } else {
         // repurpose tail
-        snake_fill_cell(tail->x, tail->y, COLOR_BLACK);
+        snake_fill_cell(tail->x, tail->y, 
+            (tail->x == applex && tail->y == appley) ? COLOR_APPLE : COLOR_BLACK);
         new_head = tail;
         tail = tail->prev;
         tail->next = NULL;
