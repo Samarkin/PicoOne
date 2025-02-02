@@ -3,6 +3,6 @@
 
 #include "application.h"
 
-extern application_t snake_app;
+extern const application_t snake_app;
 
 #endif // __SNAKE_H__

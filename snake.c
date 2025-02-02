@@ -19,6 +19,7 @@ static uint length;
 static int dirx, diry;
 static uint8_t applex, appley;
 static section_t *head, *tail;
+static bool passthrough_mode;
 
 static enum _state {
     STATE_RUN,
@@ -45,9 +46,11 @@ static void snake_randomize_apple(void) {
     // so XOR it with some random value
     appley = (time_us_32() ^ 0x5F26A193) % FIELD_HEIGHT;
     snake_fill_cell(applex, appley, COLOR_APPLE);
+    printf("Apple placed at (%d,%d)\n", applex, appley);
 }
 
 static void snake_start(void) {
+    passthrough_mode = pico_lcd_is_pressed(KEY_X);
     pico_lcd_clear();
 
     section_t *s1 = malloc(sizeof(section_t));
@@ -79,9 +82,8 @@ static void snake_start(void) {
     diry = 0;
     state = STATE_RUN;
 
-    snake_randomize_apple();
-
     printf("Snake starts with %d sections\n", length);
+    snake_randomize_apple();
 }
 
 static void snake_stop(void) {
@@ -142,6 +144,10 @@ static void snake_run(void) {
     // determine new head position
     int newx = head->x + dirx;
     int newy = head->y + diry;
+    if (passthrough_mode) {
+        newx = (newx+FIELD_WIDTH)%FIELD_WIDTH;
+        newy = (newy+FIELD_HEIGHT)%FIELD_HEIGHT;
+    }
     if (newx < 0 || newx >= FIELD_WIDTH || newy < 0 || newy >= FIELD_HEIGHT || snake_is_cell_occupied(newx, newy)) {
         state = STATE_WILL_GAME_OVER;
         return;
@@ -173,7 +179,7 @@ static void snake_run(void) {
     snake_fill_cell(head->x, head->y, COLOR_SNAKE);
 }
 
-application_t snake_app = {
+const application_t snake_app = {
     .name = "Snake",
     .start = snake_start,
     .run = snake_run,
