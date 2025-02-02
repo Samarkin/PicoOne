@@ -54,28 +54,7 @@ static void pico_lcd_send_one_byte_command(uint8_t cmd, uint8_t value) {
 }
 
 void pico_lcd_clear(void) {
-    pico_lcd_send_command(0x2A);
-    pico_lcd_send_data(0);
-    pico_lcd_send_data(0);
-    pico_lcd_send_data(0);
-    pico_lcd_send_data(LCD_WIDTH-1);
-
-    pico_lcd_send_command(0x2B);
-    pico_lcd_send_data(0);
-    pico_lcd_send_data(0);
-    pico_lcd_send_data(0);
-    pico_lcd_send_data(LCD_HEIGHT-1);
-
-    pico_lcd_send_command(0x2C);
-    gpio_put(LCD_DC_PIN, 1);
-    gpio_put(LCD_CS_PIN, 0);
-    uint8_t color[2] = {0,0};
-    for (int i = 0; i < LCD_WIDTH; i++) {
-        for (int j = 0; j < LCD_HEIGHT; j++) {
-            spi_write_blocking(spi1, color, 2);
-        }
-    }
-    gpio_put(LCD_CS_PIN, 1);
+    pico_lcd_fill_rect(0, LCD_WIDTH-1, 0, LCD_HEIGHT-1, COLOR_BLACK);
 }
 
 void pico_lcd_init(void) {
@@ -132,22 +111,33 @@ void pico_lcd_init(void) {
     pico_lcd_gpio_init_key(KEY_RIGHT);
 }
 
-void pico_lcd_set_pixel(uint8_t x, uint8_t y, uint16_t color) {
+void pico_lcd_fill_rect(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2, uint16_t color) {
     pico_lcd_send_command(0x2A);
     pico_lcd_send_data(0);
-    pico_lcd_send_data(x);
+    pico_lcd_send_data(x1);
     pico_lcd_send_data(0);
-    pico_lcd_send_data(x);
+    pico_lcd_send_data(x2);
 
     pico_lcd_send_command(0x2B);
     pico_lcd_send_data(0);
-    pico_lcd_send_data(y);
+    pico_lcd_send_data(y1);
     pico_lcd_send_data(0);
-    pico_lcd_send_data(y);
+    pico_lcd_send_data(y2);
 
     pico_lcd_send_command(0x2C);
-    pico_lcd_send_data(color >> 8);
-    pico_lcd_send_data(color & 0xFF);
+    gpio_put(LCD_DC_PIN, 1);
+    gpio_put(LCD_CS_PIN, 0);
+    uint8_t c[2] = {color >> 8, color & 0xFF};
+    for (int i = x1; i <= x2; i++) {
+        for (int j = y1; j <= y2; j++) {
+            spi_write_blocking(spi1, c, 2);
+        }
+    }
+    gpio_put(LCD_CS_PIN, 1);
+}
+
+void pico_lcd_set_pixel(uint8_t x, uint8_t y, uint16_t color) {
+    pico_lcd_fill_rect(x, x, y, y, color);
 }
 
 bool pico_lcd_is_pressed(uint key) {

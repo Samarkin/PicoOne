@@ -15,6 +15,10 @@
 #define KEY_RIGHT 20
 #define KEY_UP 2
 
+#define COLOR_BLACK 0x0000
+#define COLOR_GREEN 0x07E0
+#define COLOR_RED   0xF800
+
 /*! \brief Initialize the LCD module. Both screen and the keys.
  */
 void pico_lcd_init(void);
@@ -22,9 +26,18 @@ void pico_lcd_init(void);
 /*! \brief Set one pixel on the LCD screen.
  * \param x Value between 0 and LCD_WIDTH-1 (inclusive)
  * \param y Value between 0 and LCD_HEIGHT-1 (inclusive)
- * \param c Color in RGB 5:6:5 format (5 bits red, 6 bits green, 5 bits blue)
+ * \param color Color in RGB 5:6:5 format (5 bits red, 6 bits green, 5 bits blue)
  */
 void pico_lcd_set_pixel(uint8_t x, uint8_t y, uint16_t color);
+
+/*! \brief Fill rectangle on the LCD screen with a solid color.
+ * \param x1 Value between 0 and LCD_WIDTH-1 (inclusive)
+ * \param x2 Value between 0 and LCD_WIDTH-1 (inclusive)
+ * \param y1 Value between 0 and LCD_HEIGHT-1 (inclusive)
+ * \param y2 Value between 0 and LCD_HEIGHT-1 (inclusive)
+ * \param color Color in RGB 5:6:5 format (5 bits red, 6 bits green, 5 bits blue)
+ */
+void pico_lcd_fill_rect(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2, uint16_t color);
 
 /*! \brief Clear the entire screen (fill with black).
  */
