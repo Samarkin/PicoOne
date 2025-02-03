@@ -95,6 +95,7 @@ static int dirx, diry;
 static uint8_t applex, appley;
 static section_t *head, *tail;
 static bool borderless_mode;
+static bool just_turned;
 
 static enum _state {
     STATE_RUN,
@@ -202,6 +203,7 @@ static void snake_start(void) {
     dirx = 1;
     diry = 0;
     state = STATE_RUN;
+    just_turned = false;
 
     printf("Snake starts with %d sections\n", length);
     snake_randomize_apple();
@@ -258,15 +260,35 @@ static void snake_run(void) {
     if (pico_lcd_is_pressed(KEY_LEFT) && diry != 0) {
         dirx = -1;
         diry = 0;
+        just_turned = true;
     } else if (pico_lcd_is_pressed(KEY_RIGHT) && diry != 0) {
         dirx = 1;
         diry = 0;
+        just_turned = true;
     } else if (pico_lcd_is_pressed(KEY_UP) && dirx != 0) {
         dirx = 0;
         diry = -1;
+        just_turned = true;
     } else if (pico_lcd_is_pressed(KEY_DOWN) && dirx != 0) {
         dirx = 0;
         diry = 1;
+        just_turned = true;
+    } else if (pico_lcd_is_pressed(KEY_X)) {
+        if (!just_turned) {
+            int t = dirx;
+            dirx = diry;
+            diry = -t;
+            just_turned = true;
+        }
+    } else if (pico_lcd_is_pressed(KEY_Y)) {
+        if (!just_turned) {
+            int t = dirx;
+            dirx = -diry;
+            diry = t;
+            just_turned = true;
+        }
+    } else {
+        just_turned = false;
     }
 
     // determine new head position
