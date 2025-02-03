@@ -136,6 +136,35 @@ void pico_lcd_fill_rect(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2, uint16_t
     gpio_put(LCD_CS_PIN, 1);
 }
 
+void pico_lcd_draw_image(uint8_t x, uint8_t y, uint8_t width, uint8_t height, const uint16_t* pixels) {
+    if (width == 0 || height == 0) return;
+
+    pico_lcd_send_command(0x2A);
+    pico_lcd_send_data(0);
+    pico_lcd_send_data(x);
+    pico_lcd_send_data(0);
+    pico_lcd_send_data(x+width-1);
+
+    pico_lcd_send_command(0x2B);
+    pico_lcd_send_data(0);
+    pico_lcd_send_data(y);
+    pico_lcd_send_data(0);
+    pico_lcd_send_data(y+height-1);
+
+    pico_lcd_send_command(0x2C);
+    gpio_put(LCD_DC_PIN, 1);
+    gpio_put(LCD_CS_PIN, 0);
+    uint8_t c[2];
+    for (int j = 0; j < height; j++) {
+        for (int i = 0; i < width; i++) {
+            c[0] = pixels[i + j*width] >> 8;
+            c[1] = pixels[i + j*width] & 0xFF;
+            spi_write_blocking(spi1, c, 2);
+        }
+    }
+    gpio_put(LCD_CS_PIN, 1);
+}
+
 void pico_lcd_set_pixel(uint8_t x, uint8_t y, uint16_t color) {
     pico_lcd_fill_rect(x, x, y, y, color);
 }
