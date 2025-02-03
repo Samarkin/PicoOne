@@ -14,6 +14,7 @@
 #define KEY_DOWN 18
 #define KEY_RIGHT 20
 #define KEY_UP 2
+#define KEY_CENTER 3
 
 #define COLOR_WHITE 0xFFFF
 #define COLOR_BLACK 0x0000

@@ -109,6 +109,7 @@ void pico_lcd_init(void) {
     pico_lcd_gpio_init_key(KEY_DOWN);
     pico_lcd_gpio_init_key(KEY_UP);
     pico_lcd_gpio_init_key(KEY_RIGHT);
+    pico_lcd_gpio_init_key(KEY_CENTER);
 }
 
 void pico_lcd_fill_rect(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2, uint16_t color) {
