@@ -293,7 +293,9 @@ static void snake_run(void) {
         // erase tail
         if (!(tail->x == applex && tail->y == appley)) {
             snake_erase(tail->x, tail->y);
-            // draw new tail
+        }
+        // draw new tail
+        if (!(tail->prev->x == applex && tail->prev->y == appley)) {
             orientation_t tail_orientation;
             if (tail->prev->prev->x > tail->prev->x) {
                 tail_orientation = ORIENTATION_NORMAL;
