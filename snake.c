@@ -319,13 +319,15 @@ static void snake_run(void) {
         // draw new tail
         if (!(tail->prev->x == applex && tail->prev->y == appley)) {
             orientation_t tail_orientation;
-            if (tail->prev->prev->x > tail->prev->x) {
+            int tail_dirx = (tail->prev->prev->x - tail->prev->x + FIELD_WIDTH)%FIELD_WIDTH;
+            int tail_diry = (tail->prev->prev->y - tail->prev->y + FIELD_HEIGHT)%FIELD_HEIGHT;
+            if (tail_dirx == 1) {
                 tail_orientation = ORIENTATION_NORMAL;
-            } else if (tail->prev->prev->x < tail->prev->x) {
+            } else if (tail_dirx == FIELD_WIDTH-1) {
                 tail_orientation = ORIENTATION_MIRROR;
-            } else if (tail->prev->prev->y > tail->prev->y) {
+            } else if (tail_diry == 1) {
                 tail_orientation = ORIENTATION_ROTATE | ORIENTATION_FLIP;
-            } else if (tail->prev->prev->y < tail->prev->y) {
+            } else if (tail_diry == FIELD_HEIGHT-1) {
                 tail_orientation = ORIENTATION_ROTATE;
             }
             snake_draw_sprite(tail->prev->x, tail->prev->y, tail_sprite, tail_orientation);
@@ -339,43 +341,47 @@ static void snake_run(void) {
     // draw body segment where the current head is
     const uint16_t *sprite;
     orientation_t orientation;
-    if (newx - head->next->x == 2) {
+    int head_dirx = (newx - head->next->x + FIELD_WIDTH)%FIELD_WIDTH;
+    int head_diry = (newy - head->next->y + FIELD_HEIGHT)%FIELD_HEIGHT;
+    printf("(%d,%d) -> (%d,%d) -> (%d,%d)\n", head->next->x, head->next->y, head->x, head->y, newx, newy);
+    printf("head_dir = (%d,%d)\n", head_dirx, head_diry);
+    if (head_dirx == 2) {
         sprite = body_sprite;
         orientation = ORIENTATION_NORMAL;
-    } else if (newx - head->next->x == -2) {
+    } else if (head_dirx == FIELD_WIDTH-2) {
         sprite = body_sprite;
         orientation = ORIENTATION_MIRROR;
-    } else if (newy - head->next->y == 2) {
+    } else if (head_diry == 2) {
         sprite = body_sprite;
         orientation = ORIENTATION_ROTATE | ORIENTATION_FLIP;
-    } else if (newy - head->next->y == -2) {
+    } else if (head_diry == FIELD_HEIGHT-2) {
         sprite = body_sprite;
         orientation = ORIENTATION_ROTATE;
-    } else if (newx - head->next->x == 1) {
+    } else if (head_dirx == 1) {
         sprite = body_curve_sprite;
-        if (newy - head->next->y == 1) {
-            if (newx - head->x == 1) {
+        if (head_diry == 1) {
+            if (dirx == 1) {
                 orientation = ORIENTATION_FLIP;
             } else {
                 orientation = ORIENTATION_ROTATE | ORIENTATION_FLIP | ORIENTATION_MIRROR;
             }
         } else {
-            if (newx - head->x == 1) {
+            if (dirx == 1) {
                 orientation = ORIENTATION_NORMAL;
             } else {
                 orientation = ORIENTATION_ROTATE | ORIENTATION_MIRROR;
             }
         }
-    } else if (newx - head->next->x == -1) {
+    } else if (head_dirx == FIELD_WIDTH-1) {
         sprite = body_curve_sprite;
-        if (newy - head->next->y == -1) {
-            if (newx - head->x == 0) {
+        if (head_diry == FIELD_HEIGHT-1) {
+            if (dirx == 0) {
                 orientation = ORIENTATION_ROTATE;
             } else {
                 orientation = ORIENTATION_MIRROR;
             }
         } else {
-            if (newx - head->x == 0) {
+            if (dirx == 0) {
                 orientation = ORIENTATION_ROTATE | ORIENTATION_FLIP;
             } else {
                 orientation = ORIENTATION_FLIP | ORIENTATION_MIRROR;
