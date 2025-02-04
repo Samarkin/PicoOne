@@ -2,6 +2,12 @@
 
 Playground project for MCU development with a tiny screen.
 
+## Supported features
+
+The snake game.
+
+![](photos/snake.jpg)
+
 ## Hardware
 
 * [Waveshare 1.3-inch LCD Display Module](https://www.waveshare.com/pico-lcd-1.3.htm)
