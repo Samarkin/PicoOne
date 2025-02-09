@@ -154,6 +154,30 @@ static void snake_erase(uint8_t x, uint8_t y) {
         x*CELL_SIZE, (x+1)*CELL_SIZE - 1,
         y*CELL_SIZE + HEADER_HEIGHT, (y+1)*CELL_SIZE + HEADER_HEIGHT - 1,
         COLOR_BLACK);
+    if (!borderless_mode) {
+        if (x == 0) {
+            pico_lcd_fill_rect(
+                0, 0,
+                y*CELL_SIZE + HEADER_HEIGHT, (y+1)*CELL_SIZE + HEADER_HEIGHT - 1,
+                COLOR_GRAY);
+        } else if (x == FIELD_WIDTH-1) {
+            pico_lcd_fill_rect(
+                LCD_WIDTH-1, LCD_WIDTH-1,
+                y*CELL_SIZE + HEADER_HEIGHT, (y+1)*CELL_SIZE + HEADER_HEIGHT - 1,
+                COLOR_GRAY);
+        }
+        if (y == 0) {
+            pico_lcd_fill_rect(
+                x*CELL_SIZE, (x+1)*CELL_SIZE - 1,
+                HEADER_HEIGHT, HEADER_HEIGHT,
+                COLOR_GRAY);
+        } else if (y == FIELD_HEIGHT-1) {
+            pico_lcd_fill_rect(
+                x*CELL_SIZE, (x+1)*CELL_SIZE - 1,
+                LCD_HEIGHT-1, LCD_HEIGHT-1,
+                COLOR_GRAY);
+        }
+    }
 }
 
 static void snake_draw_score(void) {
@@ -211,8 +235,10 @@ static void snake_start(void) {
     snake_draw_score();
     if (borderless_mode) {
         pico_ui_draw_string("No borders", LCD_WIDTH-10*Font16.Width, 4, &Font16, COLOR_WHITE, COLOR_BLACK);
+        pico_lcd_fill_rect(0, LCD_WIDTH-1, HEADER_HEIGHT-1, HEADER_HEIGHT-1, COLOR_GRAY);
+    } else {
+        pico_ui_draw_rect(0, LCD_WIDTH-1, HEADER_HEIGHT, LCD_HEIGHT-1, COLOR_GRAY);
     }
-    pico_lcd_fill_rect(0, LCD_WIDTH-1, HEADER_HEIGHT-1, HEADER_HEIGHT-1, COLOR_GRAY);
 }
 
 static void snake_stop(void) {

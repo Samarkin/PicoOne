@@ -22,4 +22,13 @@ void pico_ui_draw_string(char *s, uint8_t x, uint8_t y, const sFONT* font, uint1
  */
 void pico_ui_draw_char(char ch, uint8_t x, uint8_t y, const sFONT* font, uint16_t color, uint16_t bg_color);
 
+/*! \brief Draw rectangle outline on the LCD screen.
+ * \param x1 Value between 0 and LCD_WIDTH-1 (inclusive)
+ * \param x2 Value between 0 and LCD_WIDTH-1 (inclusive)
+ * \param y1 Value between 0 and LCD_HEIGHT-1 (inclusive)
+ * \param y2 Value between 0 and LCD_HEIGHT-1 (inclusive)
+ * \param color Color in RGB 5:6:5 format (5 bits red, 6 bits green, 5 bits blue)
+ */
+void pico_ui_draw_rect(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2, uint16_t color);
+
 #endif // __PICO_UI_H__

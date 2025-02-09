@@ -48,3 +48,10 @@ void pico_ui_draw_char(char ch, uint8_t x, uint8_t y, const sFONT* font, uint16_
     }
     pico_lcd_draw_image(x, y, w, h, pixels);
 }
+
+void pico_ui_draw_rect(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2, uint16_t color) {
+    pico_lcd_fill_rect(x1, x1, y1, y2, color);
+    pico_lcd_fill_rect(x1, x2, y1, y1, color);
+    pico_lcd_fill_rect(x2, x2, y1, y2, color);
+    pico_lcd_fill_rect(x1, x2, y2, y2, color);
+}
