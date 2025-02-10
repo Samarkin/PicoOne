@@ -96,9 +96,12 @@ static uint8_t applex, appley;
 static section_t *head, *tail;
 static bool borderless_mode;
 static bool just_turned;
+static uint cycle_count;
+static bool still_holding;
 
 static enum _state {
-    STATE_RUN,
+    STATE_GAME,
+    STATE_PAUSE,
     STATE_WILL_GAME_OVER,
     STATE_GAME_OVER,
 } state;
@@ -109,9 +112,36 @@ static_assert(LCD_WIDTH%CELL_SIZE == 0);
 #define FIELD_HEIGHT ((LCD_HEIGHT - HEADER_HEIGHT)/CELL_SIZE)
 static_assert((LCD_HEIGHT - HEADER_HEIGHT)%CELL_SIZE == 0);
 
+static void snake_refresh_border(uint8_t x, uint8_t y) {
+    if (borderless_mode) return;
+    if (x == 0) {
+        pico_lcd_fill_rect(
+            0, 0,
+            y*CELL_SIZE + HEADER_HEIGHT, (y+1)*CELL_SIZE + HEADER_HEIGHT - 1,
+            COLOR_GRAY);
+    } else if (x == FIELD_WIDTH-1) {
+        pico_lcd_fill_rect(
+            LCD_WIDTH-1, LCD_WIDTH-1,
+            y*CELL_SIZE + HEADER_HEIGHT, (y+1)*CELL_SIZE + HEADER_HEIGHT - 1,
+            COLOR_GRAY);
+    }
+    if (y == 0) {
+        pico_lcd_fill_rect(
+            x*CELL_SIZE, (x+1)*CELL_SIZE - 1,
+            HEADER_HEIGHT, HEADER_HEIGHT,
+            COLOR_GRAY);
+    } else if (y == FIELD_HEIGHT-1) {
+        pico_lcd_fill_rect(
+            x*CELL_SIZE, (x+1)*CELL_SIZE - 1,
+            LCD_HEIGHT-1, LCD_HEIGHT-1,
+            COLOR_GRAY);
+    }
+}
+
 static void snake_draw_sprite(uint8_t x, uint8_t y, const uint16_t *image, orientation_t orientation) {
     if (orientation == ORIENTATION_NORMAL) {
         pico_lcd_draw_image(x*CELL_SIZE, y*CELL_SIZE + HEADER_HEIGHT, CELL_SIZE, CELL_SIZE, image);
+        snake_refresh_border(x, y);
         return;
     }
     uint16_t copy[CELL_SIZE * CELL_SIZE];
@@ -147,6 +177,7 @@ static void snake_draw_sprite(uint8_t x, uint8_t y, const uint16_t *image, orien
         }
     }
     snake_draw_sprite(x, y, copy, ORIENTATION_NORMAL);
+    snake_refresh_border(x, y);
 }
 
 static void snake_erase(uint8_t x, uint8_t y) {
@@ -154,30 +185,7 @@ static void snake_erase(uint8_t x, uint8_t y) {
         x*CELL_SIZE, (x+1)*CELL_SIZE - 1,
         y*CELL_SIZE + HEADER_HEIGHT, (y+1)*CELL_SIZE + HEADER_HEIGHT - 1,
         COLOR_BLACK);
-    if (!borderless_mode) {
-        if (x == 0) {
-            pico_lcd_fill_rect(
-                0, 0,
-                y*CELL_SIZE + HEADER_HEIGHT, (y+1)*CELL_SIZE + HEADER_HEIGHT - 1,
-                COLOR_GRAY);
-        } else if (x == FIELD_WIDTH-1) {
-            pico_lcd_fill_rect(
-                LCD_WIDTH-1, LCD_WIDTH-1,
-                y*CELL_SIZE + HEADER_HEIGHT, (y+1)*CELL_SIZE + HEADER_HEIGHT - 1,
-                COLOR_GRAY);
-        }
-        if (y == 0) {
-            pico_lcd_fill_rect(
-                x*CELL_SIZE, (x+1)*CELL_SIZE - 1,
-                HEADER_HEIGHT, HEADER_HEIGHT,
-                COLOR_GRAY);
-        } else if (y == FIELD_HEIGHT-1) {
-            pico_lcd_fill_rect(
-                x*CELL_SIZE, (x+1)*CELL_SIZE - 1,
-                LCD_HEIGHT-1, LCD_HEIGHT-1,
-                COLOR_GRAY);
-        }
-    }
+    snake_refresh_border(x, y);
 }
 
 static void snake_draw_score(void) {
@@ -226,7 +234,7 @@ static void snake_start(void) {
     tail = s3;
     dirx = 1;
     diry = 0;
-    state = STATE_RUN;
+    state = STATE_GAME;
     just_turned = false;
 
     printf("Snake starts with %d sections\n", length);
@@ -234,7 +242,6 @@ static void snake_start(void) {
 
     snake_draw_score();
     if (borderless_mode) {
-        pico_ui_draw_string("No borders", LCD_WIDTH-10*Font16.Width, 4, &Font16, COLOR_WHITE, COLOR_BLACK);
         pico_lcd_fill_rect(0, LCD_WIDTH-1, HEADER_HEIGHT-1, HEADER_HEIGHT-1, COLOR_GRAY);
     } else {
         pico_ui_draw_rect(0, LCD_WIDTH-1, HEADER_HEIGHT, LCD_HEIGHT-1, COLOR_GRAY);
@@ -253,6 +260,12 @@ static void snake_stop(void) {
     length = 0;
 }
 
+static void snake_set_state(enum _state new_state) {
+    cycle_count = 0;
+    still_holding = true;
+    state = new_state;
+}
+
 static bool snake_is_cell_occupied(uint8_t x, uint8_t y) {
     section_t *s = head;
     while (s != NULL) {
@@ -264,24 +277,38 @@ static bool snake_is_cell_occupied(uint8_t x, uint8_t y) {
     return false;
 }
 
-static void snake_run(void) {
-    sleep_ms(100);
+static inline void snake_run_will_game_over(void) {
+    printf("Game over with score %d\n", length);
+    pico_ui_draw_string("GAME\nOVER", LCD_WIDTH/2-2*Font24.Width, LCD_HEIGHT/2-Font24.Height,
+        &Font24, COLOR_RED, COLOR_BLACK); 
+    snake_set_state(STATE_GAME_OVER);
+}
 
-    if (state == STATE_WILL_GAME_OVER) {
-        printf("Game over with score %d\n", length);
-        pico_ui_draw_string("GAME\nOVER", LCD_WIDTH/2-2*Font24.Width, LCD_HEIGHT/2-Font24.Height,
-            &Font24, COLOR_RED, COLOR_BLACK); 
-        state = STATE_GAME_OVER;
-        return;
-    } else if (state == STATE_GAME_OVER) {
-        if (pico_lcd_is_pressed(KEY_A)) {
-            snake_stop();
-            snake_start();
-        }
+static inline void snake_run_game_over(void) {
+    if (pico_lcd_is_pressed(KEY_A)) {
+        snake_stop();
+        snake_start();
+    }
+}
+
+static inline void snake_run_pause(void) {
+    bool is_a_pressed = pico_lcd_is_pressed(KEY_A);
+    still_holding &= is_a_pressed;
+    if (is_a_pressed && !still_holding) {
+        pico_lcd_fill_rect(LCD_WIDTH-6*Font16.Width, LCD_WIDTH-1, 0, HEADER_HEIGHT-2, COLOR_BLACK);
+        snake_set_state(STATE_GAME);
         return;
     }
-    // state == STATE_RUN
+    if (cycle_count % 20 == 1) {
+        pico_ui_draw_string("PAUSE", LCD_WIDTH-6*Font16.Width, 4, &Font16, COLOR_RED, COLOR_BLACK);
+    } else if (cycle_count % 10 == 1) {
+        pico_lcd_fill_rect(LCD_WIDTH-6*Font16.Width, LCD_WIDTH-1, 0, HEADER_HEIGHT-2, COLOR_BLACK);
+    }
+}
 
+static inline void snake_run_game(void) {
+    bool is_a_pressed = pico_lcd_is_pressed(KEY_A);
+    still_holding &= is_a_pressed;
     // only allow 90 degree turns
     if (pico_lcd_is_pressed(KEY_LEFT) && diry != 0) {
         dirx = -1;
@@ -299,6 +326,8 @@ static void snake_run(void) {
         dirx = 0;
         diry = 1;
         just_turned = true;
+    } else if (is_a_pressed && !still_holding) {
+        snake_set_state(STATE_PAUSE);
     } else if (pico_lcd_is_pressed(KEY_X)) {
         if (!just_turned) {
             int t = dirx;
@@ -325,7 +354,7 @@ static void snake_run(void) {
         newy = (newy+FIELD_HEIGHT)%FIELD_HEIGHT;
     }
     if (newx < 0 || newx >= FIELD_WIDTH || newy < 0 || newy >= FIELD_HEIGHT || snake_is_cell_occupied(newx, newy)) {
-        state = STATE_WILL_GAME_OVER;
+        snake_set_state(STATE_WILL_GAME_OVER);
         return;
     }
 
@@ -436,6 +465,26 @@ static void snake_run(void) {
         head_orientation = ORIENTATION_ROTATE | ORIENTATION_FLIP;
     }
     snake_draw_sprite(head->x, head->y, head_sprite, head_orientation);
+}
+
+static void snake_run(void) {
+    sleep_ms(100);
+    switch (state)
+    {
+    case STATE_GAME:
+        snake_run_game();
+        break;
+    case STATE_PAUSE:
+        snake_run_pause();
+        break;
+    case STATE_GAME_OVER:
+        snake_run_game_over();
+        break;
+    case STATE_WILL_GAME_OVER:
+        snake_run_will_game_over();
+        break;
+    }
+    cycle_count++;
 }
 
 const application_t snake_app = {
