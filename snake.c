@@ -94,17 +94,30 @@ static uint length;
 static int dirx, diry;
 static uint8_t applex, appley;
 static section_t *head, *tail;
-static bool borderless_mode;
+static bool borderless_mode = false;
 static bool just_turned;
 static uint cycle_count;
 static bool still_holding;
 
 static enum _state {
+    STATE_INIT,
+    STATE_MENU,
+    STATE_START,
     STATE_GAME,
     STATE_PAUSE,
     STATE_WILL_GAME_OVER,
     STATE_GAME_OVER,
 } state;
+
+static void snake_set_state(enum _state new_state);
+
+typedef enum _menu_item {
+    MENU_ITEM_START,
+    MENU_ITEM_GAME_SPEED,
+    MENU_ITEM_BORDERS,
+    _MENU_ITEM_COUNT,
+} menu_item_t;
+static menu_item_t menu_selection;
 
 #define FIELD_WIDTH (LCD_WIDTH/CELL_SIZE)
 static_assert(LCD_WIDTH%CELL_SIZE == 0);
@@ -203,8 +216,7 @@ static void snake_randomize_apple(void) {
     printf("Apple placed at (%d,%d)\n", applex, appley);
 }
 
-static void snake_start(void) {
-    borderless_mode = pico_lcd_is_pressed(KEY_X);
+static inline void snake_run_start(void) {
     pico_lcd_clear();
 
     section_t *s1 = malloc(sizeof(section_t));
@@ -234,7 +246,7 @@ static void snake_start(void) {
     tail = s3;
     dirx = 1;
     diry = 0;
-    state = STATE_GAME;
+    snake_set_state(STATE_GAME);
     just_turned = false;
 
     printf("Snake starts with %d sections\n", length);
@@ -246,6 +258,10 @@ static void snake_start(void) {
     } else {
         pico_ui_draw_rect(0, LCD_WIDTH-1, HEADER_HEIGHT, LCD_HEIGHT-1, COLOR_GRAY);
     }
+}
+
+static void snake_start(void) {
+    snake_set_state(STATE_INIT);
 }
 
 static void snake_stop(void) {
@@ -275,6 +291,89 @@ static bool snake_is_cell_occupied(uint8_t x, uint8_t y) {
         s = s->next;
     }
     return false;
+}
+
+static void snake_draw_rect_around(menu_item_t item, uint16_t color) {
+    uint y = LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2 + Font20.Height*item + (item?14:0);
+    pico_ui_draw_rect(10, LCD_WIDTH-11, y-1, y+Font20.Height-3, color);
+}
+
+static void snake_draw_menu(void) {
+    pico_ui_draw_string("START", LCD_WIDTH/2 - 5*Font20.Width/2,
+        LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2,
+        &Font20, COLOR_WHITE, COLOR_BLACK);
+    pico_ui_draw_string("GAME SPEED:  3", LCD_WIDTH/2 - 7*Font20.Width,
+        LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2 + Font20.Height + 14,
+        &Font20, COLOR_WHITE, COLOR_BLACK);
+    pico_ui_draw_string(borderless_mode ? "BORDERS: OFF" : "BORDERS:  ON",
+        LCD_WIDTH/2 - 6*Font20.Width,
+        LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2 + 2*Font20.Height + 14,
+        &Font20, COLOR_WHITE, COLOR_BLACK);
+
+    snake_draw_rect_around(menu_selection, COLOR_WHITE);
+}
+
+static inline void snake_run_init(void) {
+    menu_selection = MENU_ITEM_START;
+
+    pico_lcd_clear();
+    snake_draw_menu();
+    snake_set_state(STATE_MENU);
+}
+
+static inline void snake_run_menu(void) {
+    bool full_redraw = false;
+    if (pico_lcd_is_pressed(KEY_DOWN)) {
+        if (!still_holding) {
+            snake_draw_rect_around(menu_selection, COLOR_BLACK);
+            menu_selection = (menu_selection + 1) % _MENU_ITEM_COUNT;
+            snake_draw_rect_around(menu_selection, COLOR_WHITE);
+            still_holding = true;
+        }
+    }
+    else if (pico_lcd_is_pressed(KEY_UP)) {
+        if (!still_holding) {
+            snake_draw_rect_around(menu_selection, COLOR_BLACK);
+            menu_selection = (menu_selection + _MENU_ITEM_COUNT - 1) % _MENU_ITEM_COUNT;
+            snake_draw_rect_around(menu_selection, COLOR_WHITE);
+            still_holding = true;
+        }
+    }
+    else if (pico_lcd_is_pressed(KEY_LEFT)) {
+        if (!still_holding) {
+            if (menu_selection == MENU_ITEM_BORDERS) {
+                borderless_mode = !borderless_mode;
+                full_redraw = true;
+            }
+        }
+    }
+    else if (pico_lcd_is_pressed(KEY_RIGHT)) {
+        if (!still_holding) {
+            if (menu_selection == MENU_ITEM_BORDERS) {
+                borderless_mode = !borderless_mode;
+                full_redraw = true;
+            }
+        }
+    }
+    else if (pico_lcd_is_pressed(KEY_A)) {
+        if (!still_holding) {
+            if (menu_selection == MENU_ITEM_START) {
+                snake_set_state(STATE_START);
+            }
+            else if (menu_selection == MENU_ITEM_BORDERS) {
+                borderless_mode = !borderless_mode;
+                full_redraw = true;
+            }
+        }
+    }
+    else {
+        still_holding = false;
+    }
+
+    if (full_redraw) {
+        still_holding = true;
+        snake_draw_menu();
+    }
 }
 
 static inline void snake_run_will_game_over(void) {
@@ -471,6 +570,15 @@ static void snake_run(void) {
     sleep_ms(100);
     switch (state)
     {
+    case STATE_INIT:
+        snake_run_init();
+        break;
+    case STATE_MENU:
+        snake_run_menu();
+        break;
+    case STATE_START:
+        snake_run_start();
+        break;
     case STATE_GAME:
         snake_run_game();
         break;
