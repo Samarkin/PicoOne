@@ -21,6 +21,7 @@
 #define COLOR_GREEN 0x07E0
 #define COLOR_GRAY  0x8410
 #define COLOR_RED   0xF800
+#define COLOR_YELLOW 0xFFE0
 
 /*! \brief Initialize the LCD module. Both screen and the keys.
  */
