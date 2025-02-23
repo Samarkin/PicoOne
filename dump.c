@@ -50,6 +50,8 @@ static void dump_run(void) {
         new_offset = addr & 0xFFFFFFE0;
         highlight_start = addr;
         highlight_len = strlen(dump_app.name);
+    } else if (pico_lcd_is_pressed(KEY_LEFT)) {
+        pico_application_stop();
     }
     if (new_offset == offset) {
         return;

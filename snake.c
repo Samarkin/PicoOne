@@ -115,6 +115,7 @@ typedef enum _menu_item {
     MENU_ITEM_START,
     MENU_ITEM_GAME_SPEED,
     MENU_ITEM_BORDERS,
+    MENU_ITEM_EXIT,
     _MENU_ITEM_COUNT,
 } menu_item_t;
 static menu_item_t menu_selection;
@@ -309,6 +310,9 @@ static void snake_draw_menu(void) {
         LCD_WIDTH/2 - 6*Font20.Width,
         LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2 + 2*Font20.Height + 14,
         &Font20, COLOR_WHITE, COLOR_BLACK);
+    pico_ui_draw_string("EXIT", LCD_WIDTH/2 - 2*Font20.Width,
+        LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2 + 3*Font20.Height + 14,
+        &Font20, COLOR_WHITE, COLOR_BLACK);
 
     snake_draw_rect_around(menu_selection, COLOR_WHITE);
 }
@@ -363,6 +367,9 @@ static inline void snake_run_menu(void) {
             else if (menu_selection == MENU_ITEM_BORDERS) {
                 borderless_mode = !borderless_mode;
                 full_redraw = true;
+            }
+            else if (menu_selection == MENU_ITEM_EXIT) {
+                pico_application_stop();
             }
         }
     }
