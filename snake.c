@@ -90,16 +90,7 @@ typedef struct _section {
     uint8_t y;
 } section_t;
 
-static uint length;
-static int dirx, diry;
-static uint8_t applex, appley;
-static section_t *head, *tail;
-static bool borderless_mode = false;
-static bool just_turned;
-static uint cycle_count;
-static bool still_holding;
-
-static enum _state {
+typedef enum _state {
     STATE_INIT,
     STATE_MENU,
     STATE_START,
@@ -107,9 +98,7 @@ static enum _state {
     STATE_PAUSE,
     STATE_WILL_GAME_OVER,
     STATE_GAME_OVER,
-} state;
-
-static void snake_set_state(enum _state new_state);
+} state_t;
 
 typedef enum _menu_item {
     MENU_ITEM_START,
@@ -118,7 +107,23 @@ typedef enum _menu_item {
     MENU_ITEM_EXIT,
     _MENU_ITEM_COUNT,
 } menu_item_t;
-static menu_item_t menu_selection;
+
+typedef struct _snake_application_data {
+    uint length;
+    int dirx, diry;
+    uint8_t applex, appley;
+    section_t *head, *tail;
+    bool borderless_mode;
+    bool just_turned;
+    uint cycle_count;
+    bool still_holding;
+    state_t state;
+    menu_item_t menu_selection;
+} snake_application_data_t;
+
+#define APP_DATA ((snake_application_data_t*)pico_application_data)
+
+static void snake_set_state(state_t new_state);
 
 #define FIELD_WIDTH (LCD_WIDTH/CELL_SIZE)
 static_assert(LCD_WIDTH%CELL_SIZE == 0);
@@ -127,7 +132,7 @@ static_assert(LCD_WIDTH%CELL_SIZE == 0);
 static_assert((LCD_HEIGHT - HEADER_HEIGHT)%CELL_SIZE == 0);
 
 static void snake_refresh_border(uint8_t x, uint8_t y) {
-    if (borderless_mode) return;
+    if (APP_DATA->borderless_mode) return;
     if (x == 0) {
         pico_lcd_fill_rect(
             0, 0,
@@ -204,17 +209,17 @@ static void snake_erase(uint8_t x, uint8_t y) {
 
 static void snake_draw_score(void) {
     char score_str[14];
-    sprintf(score_str, "SCORE: %d\0", length - 3);
+    sprintf(score_str, "SCORE: %d\0", APP_DATA->length - 3);
     pico_ui_draw_string(score_str, 0, 4, &Font16, COLOR_WHITE, COLOR_BLACK); 
 }
 
 static void snake_randomize_apple(void) {
-    applex = time_us_32() % FIELD_WIDTH;
+    APP_DATA->applex = time_us_32() % FIELD_WIDTH;
     // two consequtive calls to `time_us_32` would always be very similar,
     // so XOR it with some random value
-    appley = (time_us_32() ^ 0x5F26A193) % FIELD_HEIGHT;
-    snake_draw_sprite(applex, appley, apple_sprite, ORIENTATION_NORMAL);
-    printf("Apple placed at (%d,%d)\n", applex, appley);
+    APP_DATA->appley = (time_us_32() ^ 0x5F26A193) % FIELD_HEIGHT;
+    snake_draw_sprite(APP_DATA->applex, APP_DATA->appley, apple_sprite, ORIENTATION_NORMAL);
+    printf("Apple placed at (%d,%d)\n", APP_DATA->applex, APP_DATA->appley);
 }
 
 static inline void snake_run_start(void) {
@@ -242,19 +247,18 @@ static inline void snake_run_start(void) {
     s3->prev = s2;
     s3->next = NULL;
 
-    length = 3;
-    head = s1;
-    tail = s3;
-    dirx = 1;
-    diry = 0;
+    APP_DATA->length = 3;
+    APP_DATA->head = s1;
+    APP_DATA->tail = s3;
+    APP_DATA->dirx = 1;
+    APP_DATA->diry = 0;
     snake_set_state(STATE_GAME);
-    just_turned = false;
+    APP_DATA->just_turned = false;
 
-    printf("Snake starts with %d sections\n", length);
     snake_randomize_apple();
 
     snake_draw_score();
-    if (borderless_mode) {
+    if (APP_DATA->borderless_mode) {
         pico_lcd_fill_rect(0, LCD_WIDTH-1, HEADER_HEIGHT-1, HEADER_HEIGHT-1, COLOR_GRAY);
     } else {
         pico_ui_draw_rect(0, LCD_WIDTH-1, HEADER_HEIGHT, LCD_HEIGHT-1, COLOR_GRAY);
@@ -266,25 +270,25 @@ static void snake_start(void) {
 }
 
 static void snake_stop(void) {
-    section_t *s = head;
+    section_t *s = APP_DATA->head;
     while (s != NULL) {
         section_t *old_s = s;
         s = s->next;
         free(old_s);
     }
-    head = NULL;
-    tail = NULL;
-    length = 0;
+    APP_DATA->head = NULL;
+    APP_DATA->tail = NULL;
+    APP_DATA->length = 0;
 }
 
-static void snake_set_state(enum _state new_state) {
-    cycle_count = 0;
-    still_holding = true;
-    state = new_state;
+static void snake_set_state(state_t new_state) {
+    APP_DATA->cycle_count = 0;
+    APP_DATA->still_holding = true;
+    APP_DATA->state = new_state;
 }
 
 static bool snake_is_cell_occupied(uint8_t x, uint8_t y) {
-    section_t *s = head;
+    section_t *s = APP_DATA->head;
     while (s != NULL) {
         if (s->x == x && s->y == y) {
             return true;
@@ -306,7 +310,7 @@ static void snake_draw_menu(void) {
     pico_ui_draw_string("GAME SPEED:  3", LCD_WIDTH/2 - 7*Font20.Width,
         LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2 + Font20.Height + 14,
         &Font20, COLOR_WHITE, COLOR_BLACK);
-    pico_ui_draw_string(borderless_mode ? "BORDERS: OFF" : "BORDERS:  ON",
+    pico_ui_draw_string(APP_DATA->borderless_mode ? "BORDERS: OFF" : "BORDERS:  ON",
         LCD_WIDTH/2 - 6*Font20.Width,
         LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2 + 2*Font20.Height + 14,
         &Font20, COLOR_WHITE, COLOR_BLACK);
@@ -314,11 +318,11 @@ static void snake_draw_menu(void) {
         LCD_HEIGHT/2 - Font20.Height*_MENU_ITEM_COUNT/2 + 3*Font20.Height + 14,
         &Font20, COLOR_WHITE, COLOR_BLACK);
 
-    snake_draw_rect_around(menu_selection, COLOR_WHITE);
+    snake_draw_rect_around(APP_DATA->menu_selection, COLOR_WHITE);
 }
 
 static inline void snake_run_init(void) {
-    menu_selection = MENU_ITEM_START;
+    APP_DATA->menu_selection = MENU_ITEM_START;
 
     pico_lcd_clear();
     snake_draw_menu();
@@ -328,63 +332,63 @@ static inline void snake_run_init(void) {
 static inline void snake_run_menu(void) {
     bool full_redraw = false;
     if (pico_lcd_is_pressed(KEY_DOWN)) {
-        if (!still_holding) {
-            snake_draw_rect_around(menu_selection, COLOR_BLACK);
-            menu_selection = (menu_selection + 1) % _MENU_ITEM_COUNT;
-            snake_draw_rect_around(menu_selection, COLOR_WHITE);
-            still_holding = true;
+        if (!APP_DATA->still_holding) {
+            snake_draw_rect_around(APP_DATA->menu_selection, COLOR_BLACK);
+            APP_DATA->menu_selection = (APP_DATA->menu_selection + 1) % _MENU_ITEM_COUNT;
+            snake_draw_rect_around(APP_DATA->menu_selection, COLOR_WHITE);
+            APP_DATA->still_holding = true;
         }
     }
     else if (pico_lcd_is_pressed(KEY_UP)) {
-        if (!still_holding) {
-            snake_draw_rect_around(menu_selection, COLOR_BLACK);
-            menu_selection = (menu_selection + _MENU_ITEM_COUNT - 1) % _MENU_ITEM_COUNT;
-            snake_draw_rect_around(menu_selection, COLOR_WHITE);
-            still_holding = true;
+        if (!APP_DATA->still_holding) {
+            snake_draw_rect_around(APP_DATA->menu_selection, COLOR_BLACK);
+            APP_DATA->menu_selection = (APP_DATA->menu_selection + _MENU_ITEM_COUNT - 1) % _MENU_ITEM_COUNT;
+            snake_draw_rect_around(APP_DATA->menu_selection, COLOR_WHITE);
+            APP_DATA->still_holding = true;
         }
     }
     else if (pico_lcd_is_pressed(KEY_LEFT)) {
-        if (!still_holding) {
-            if (menu_selection == MENU_ITEM_BORDERS) {
-                borderless_mode = !borderless_mode;
+        if (!APP_DATA->still_holding) {
+            if (APP_DATA->menu_selection == MENU_ITEM_BORDERS) {
+                APP_DATA->borderless_mode = !APP_DATA->borderless_mode;
                 full_redraw = true;
             }
         }
     }
     else if (pico_lcd_is_pressed(KEY_RIGHT)) {
-        if (!still_holding) {
-            if (menu_selection == MENU_ITEM_BORDERS) {
-                borderless_mode = !borderless_mode;
+        if (!APP_DATA->still_holding) {
+            if (APP_DATA->menu_selection == MENU_ITEM_BORDERS) {
+                APP_DATA->borderless_mode = !APP_DATA->borderless_mode;
                 full_redraw = true;
             }
         }
     }
     else if (pico_lcd_is_pressed(KEY_A)) {
-        if (!still_holding) {
-            if (menu_selection == MENU_ITEM_START) {
+        if (!APP_DATA->still_holding) {
+            if (APP_DATA->menu_selection == MENU_ITEM_START) {
                 snake_set_state(STATE_START);
             }
-            else if (menu_selection == MENU_ITEM_BORDERS) {
-                borderless_mode = !borderless_mode;
+            else if (APP_DATA->menu_selection == MENU_ITEM_BORDERS) {
+                APP_DATA->borderless_mode = !APP_DATA->borderless_mode;
                 full_redraw = true;
             }
-            else if (menu_selection == MENU_ITEM_EXIT) {
+            else if (APP_DATA->menu_selection == MENU_ITEM_EXIT) {
                 pico_application_stop();
             }
         }
     }
     else {
-        still_holding = false;
+        APP_DATA->still_holding = false;
     }
 
     if (full_redraw) {
-        still_holding = true;
+        APP_DATA->still_holding = true;
         snake_draw_menu();
     }
 }
 
 static inline void snake_run_will_game_over(void) {
-    printf("Game over with score %d\n", length);
+    printf("Game over with score %d\n", APP_DATA->length-3);
     pico_ui_draw_string("GAME\nOVER", LCD_WIDTH/2-2*Font24.Width, LCD_HEIGHT/2-Font24.Height,
         &Font24, COLOR_RED, COLOR_BLACK); 
     snake_set_state(STATE_GAME_OVER);
@@ -399,63 +403,63 @@ static inline void snake_run_game_over(void) {
 
 static inline void snake_run_pause(void) {
     bool is_a_pressed = pico_lcd_is_pressed(KEY_A);
-    still_holding &= is_a_pressed;
-    if (is_a_pressed && !still_holding) {
+    APP_DATA->still_holding &= is_a_pressed;
+    if (is_a_pressed && !APP_DATA->still_holding) {
         pico_lcd_fill_rect(LCD_WIDTH-6*Font16.Width, LCD_WIDTH-1, 0, HEADER_HEIGHT-2, COLOR_BLACK);
         snake_set_state(STATE_GAME);
         return;
     }
-    if (cycle_count % 20 == 1) {
+    if (APP_DATA->cycle_count % 20 == 1) {
         pico_ui_draw_string("PAUSE", LCD_WIDTH-6*Font16.Width, 4, &Font16, COLOR_RED, COLOR_BLACK);
-    } else if (cycle_count % 10 == 1) {
+    } else if (APP_DATA->cycle_count % 10 == 1) {
         pico_lcd_fill_rect(LCD_WIDTH-6*Font16.Width, LCD_WIDTH-1, 0, HEADER_HEIGHT-2, COLOR_BLACK);
     }
 }
 
 static inline void snake_run_game(void) {
     bool is_a_pressed = pico_lcd_is_pressed(KEY_A);
-    still_holding &= is_a_pressed;
+    APP_DATA->still_holding &= is_a_pressed;
     // only allow 90 degree turns
-    if (pico_lcd_is_pressed(KEY_LEFT) && diry != 0) {
-        dirx = -1;
-        diry = 0;
-        just_turned = true;
-    } else if (pico_lcd_is_pressed(KEY_RIGHT) && diry != 0) {
-        dirx = 1;
-        diry = 0;
-        just_turned = true;
-    } else if (pico_lcd_is_pressed(KEY_UP) && dirx != 0) {
-        dirx = 0;
-        diry = -1;
-        just_turned = true;
-    } else if (pico_lcd_is_pressed(KEY_DOWN) && dirx != 0) {
-        dirx = 0;
-        diry = 1;
-        just_turned = true;
-    } else if (is_a_pressed && !still_holding) {
+    if (pico_lcd_is_pressed(KEY_LEFT) && APP_DATA->diry != 0) {
+        APP_DATA->dirx = -1;
+        APP_DATA->diry = 0;
+        APP_DATA->just_turned = true;
+    } else if (pico_lcd_is_pressed(KEY_RIGHT) && APP_DATA->diry != 0) {
+        APP_DATA->dirx = 1;
+        APP_DATA->diry = 0;
+        APP_DATA->just_turned = true;
+    } else if (pico_lcd_is_pressed(KEY_UP) && APP_DATA->dirx != 0) {
+        APP_DATA->dirx = 0;
+        APP_DATA->diry = -1;
+        APP_DATA->just_turned = true;
+    } else if (pico_lcd_is_pressed(KEY_DOWN) && APP_DATA->dirx != 0) {
+        APP_DATA->dirx = 0;
+        APP_DATA->diry = 1;
+        APP_DATA->just_turned = true;
+    } else if (is_a_pressed && !APP_DATA->still_holding) {
         snake_set_state(STATE_PAUSE);
     } else if (pico_lcd_is_pressed(KEY_X)) {
-        if (!just_turned) {
-            int t = dirx;
-            dirx = diry;
-            diry = -t;
-            just_turned = true;
+        if (!APP_DATA->just_turned) {
+            int t = APP_DATA->dirx;
+            APP_DATA->dirx = APP_DATA->diry;
+            APP_DATA->diry = -t;
+            APP_DATA->just_turned = true;
         }
     } else if (pico_lcd_is_pressed(KEY_Y)) {
-        if (!just_turned) {
-            int t = dirx;
-            dirx = -diry;
-            diry = t;
-            just_turned = true;
+        if (!APP_DATA->just_turned) {
+            int t = APP_DATA->dirx;
+            APP_DATA->dirx = -APP_DATA->diry;
+            APP_DATA->diry = t;
+            APP_DATA->just_turned = true;
         }
     } else {
-        just_turned = false;
+        APP_DATA->just_turned = false;
     }
 
     // determine new head position
-    int newx = head->x + dirx;
-    int newy = head->y + diry;
-    if (borderless_mode) {
+    int newx = APP_DATA->head->x + APP_DATA->dirx;
+    int newy = APP_DATA->head->y + APP_DATA->diry;
+    if (APP_DATA->borderless_mode) {
         newx = (newx+FIELD_WIDTH)%FIELD_WIDTH;
         newy = (newy+FIELD_HEIGHT)%FIELD_HEIGHT;
     }
@@ -465,23 +469,23 @@ static inline void snake_run_game(void) {
     }
 
     section_t* new_head;
-    if (newx == applex && newy == appley) {
+    if (newx == APP_DATA->applex && newy == APP_DATA->appley) {
         // grow new section
         new_head = malloc(sizeof(section_t));
         snake_randomize_apple();
-        length += 1;
+        APP_DATA->length += 1;
         snake_draw_score();
-        printf("Snake has %d sections\n", length);
+        printf("Snake has %d sections\n", APP_DATA->length);
     } else {
         // erase tail
-        if (!(tail->x == applex && tail->y == appley)) {
-            snake_erase(tail->x, tail->y);
+        if (!(APP_DATA->tail->x == APP_DATA->applex && APP_DATA->tail->y == APP_DATA->appley)) {
+            snake_erase(APP_DATA->tail->x, APP_DATA->tail->y);
         }
         // draw new tail
-        if (!(tail->prev->x == applex && tail->prev->y == appley)) {
+        if (!(APP_DATA->tail->prev->x == APP_DATA->applex && APP_DATA->tail->prev->y == APP_DATA->appley)) {
             orientation_t tail_orientation;
-            int tail_dirx = (tail->prev->prev->x - tail->prev->x + FIELD_WIDTH)%FIELD_WIDTH;
-            int tail_diry = (tail->prev->prev->y - tail->prev->y + FIELD_HEIGHT)%FIELD_HEIGHT;
+            int tail_dirx = (APP_DATA->tail->prev->prev->x - APP_DATA->tail->prev->x + FIELD_WIDTH)%FIELD_WIDTH;
+            int tail_diry = (APP_DATA->tail->prev->prev->y - APP_DATA->tail->prev->y + FIELD_HEIGHT)%FIELD_HEIGHT;
             if (tail_dirx == 1) {
                 tail_orientation = ORIENTATION_NORMAL;
             } else if (tail_dirx == FIELD_WIDTH-1) {
@@ -491,20 +495,21 @@ static inline void snake_run_game(void) {
             } else if (tail_diry == FIELD_HEIGHT-1) {
                 tail_orientation = ORIENTATION_ROTATE;
             }
-            snake_draw_sprite(tail->prev->x, tail->prev->y, tail_sprite, tail_orientation);
+            snake_draw_sprite(APP_DATA->tail->prev->x, APP_DATA->tail->prev->y, tail_sprite, tail_orientation);
         }
         // repurpose tail section
-        new_head = tail;
-        tail = tail->prev;
-        tail->next = NULL;
+        new_head = APP_DATA->tail;
+        APP_DATA->tail = APP_DATA->tail->prev;
+        APP_DATA->tail->next = NULL;
     }
 
     // draw body segment where the current head is
     const uint16_t *sprite;
     orientation_t orientation;
-    int head_dirx = (newx - head->next->x + FIELD_WIDTH)%FIELD_WIDTH;
-    int head_diry = (newy - head->next->y + FIELD_HEIGHT)%FIELD_HEIGHT;
-    printf("(%d,%d) -> (%d,%d) -> (%d,%d)\n", head->next->x, head->next->y, head->x, head->y, newx, newy);
+    int head_dirx = (newx - APP_DATA->head->next->x + FIELD_WIDTH)%FIELD_WIDTH;
+    int head_diry = (newy - APP_DATA->head->next->y + FIELD_HEIGHT)%FIELD_HEIGHT;
+    printf("(%d,%d) -> (%d,%d) -> (%d,%d)\n", APP_DATA->head->next->x, APP_DATA->head->next->y,
+        APP_DATA->head->x, APP_DATA->head->y, newx, newy);
     printf("head_dir = (%d,%d)\n", head_dirx, head_diry);
     if (head_dirx == 2) {
         sprite = body_sprite;
@@ -521,13 +526,13 @@ static inline void snake_run_game(void) {
     } else if (head_dirx == 1) {
         sprite = body_curve_sprite;
         if (head_diry == 1) {
-            if (dirx == 1) {
+            if (APP_DATA->dirx == 1) {
                 orientation = ORIENTATION_FLIP;
             } else {
                 orientation = ORIENTATION_ROTATE | ORIENTATION_FLIP | ORIENTATION_MIRROR;
             }
         } else {
-            if (dirx == 1) {
+            if (APP_DATA->dirx == 1) {
                 orientation = ORIENTATION_NORMAL;
             } else {
                 orientation = ORIENTATION_ROTATE | ORIENTATION_MIRROR;
@@ -536,46 +541,46 @@ static inline void snake_run_game(void) {
     } else if (head_dirx == FIELD_WIDTH-1) {
         sprite = body_curve_sprite;
         if (head_diry == FIELD_HEIGHT-1) {
-            if (dirx == 0) {
+            if (APP_DATA->dirx == 0) {
                 orientation = ORIENTATION_ROTATE;
             } else {
                 orientation = ORIENTATION_MIRROR;
             }
         } else {
-            if (dirx == 0) {
+            if (APP_DATA->dirx == 0) {
                 orientation = ORIENTATION_ROTATE | ORIENTATION_FLIP;
             } else {
                 orientation = ORIENTATION_FLIP | ORIENTATION_MIRROR;
             }
         }
     }
-    snake_draw_sprite(head->x, head->y, sprite, orientation);
+    snake_draw_sprite(APP_DATA->head->x, APP_DATA->head->y, sprite, orientation);
 
     // place new head
     new_head->x = newx;
     new_head->y = newy;
-    new_head->next = head;
+    new_head->next = APP_DATA->head;
     new_head->prev = NULL;
-    head->prev = new_head;
-    head = new_head;
+    APP_DATA->head->prev = new_head;
+    APP_DATA->head = new_head;
 
     // draw new head
     orientation_t head_orientation;
-    if (dirx == 1 && diry == 0) {
+    if (APP_DATA->dirx == 1 && APP_DATA->diry == 0) {
         head_orientation = ORIENTATION_NORMAL;
-    } else if (dirx == -1 && diry == 0) {
+    } else if (APP_DATA->dirx == -1 && APP_DATA->diry == 0) {
         head_orientation = ORIENTATION_MIRROR;
-    } else if (dirx == 0 && diry == -1) {
+    } else if (APP_DATA->dirx == 0 && APP_DATA->diry == -1) {
         head_orientation = ORIENTATION_ROTATE;
-    } else if (dirx == 0 && diry == 1) {
+    } else if (APP_DATA->dirx == 0 && APP_DATA->diry == 1) {
         head_orientation = ORIENTATION_ROTATE | ORIENTATION_FLIP;
     }
-    snake_draw_sprite(head->x, head->y, head_sprite, head_orientation);
+    snake_draw_sprite(APP_DATA->head->x, APP_DATA->head->y, head_sprite, head_orientation);
 }
 
 static void snake_run(void) {
     sleep_ms(100);
-    switch (state)
+    switch (APP_DATA->state)
     {
     case STATE_INIT:
         snake_run_init();
@@ -599,11 +604,12 @@ static void snake_run(void) {
         snake_run_will_game_over();
         break;
     }
-    cycle_count++;
+    APP_DATA->cycle_count++;
 }
 
 const application_t snake_app = {
     .name = "Snake",
+    .data_size = sizeof(snake_application_data_t),
     .start = snake_start,
     .run = snake_run,
     .stop = snake_stop,

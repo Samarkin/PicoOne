@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "pico/stdlib.h"
 #include "pico_lcd.h"
 #include "pico_ui.h"
@@ -13,6 +15,7 @@ static const application_t* const APPLICATIONS[] = {
 static const int APPLICATION_COUNT = sizeof(APPLICATIONS) / sizeof(const application_t*);
 static int pico_menu_selection;
 static bool app_is_running;
+void* pico_application_data;
 
 void pico_application_stop(void) {
     app_is_running = false;
@@ -72,10 +75,13 @@ int main() {
         const application_t* current_app = APPLICATIONS[pico_menu_selection];
         printf("Starting application %s\n", current_app->name);
         app_is_running = true;
+        pico_application_data = malloc(current_app->data_size);
+        memset(pico_application_data, 0, current_app->data_size);
         current_app->start();
         while (app_is_running) {
             current_app->run();
         }
         current_app->stop();
+        free(pico_application_data);
     }
 }
