@@ -6,10 +6,12 @@
 #include "pico_ui.h"
 
 #include "snake.h"
+#include "tetris.h"
 #include "dump.h"
 
 static const application_t* const APPLICATIONS[] = {
     &snake_app,
+    &tetris_app,
     &dump_app,
 };
 static const int APPLICATION_COUNT = sizeof(APPLICATIONS) / sizeof(const application_t*);
