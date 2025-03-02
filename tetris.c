@@ -7,11 +7,13 @@
 
 #define CELL_SIZE 12
 #define FIELD_WIDTH 10
-#define FIELD_HEIGHT 18
+#define FIELD_HEIGHT 19
 #define FIELD_OFFSET ((LCD_WIDTH - FIELD_WIDTH*CELL_SIZE)/2 - 1)
-#define HEADER_HEIGHT (LCD_HEIGHT - FIELD_HEIGHT*CELL_SIZE - 1)
+#define HEADER_HEIGHT 5
+#define FIELD_END (HEADER_HEIGHT + FIELD_HEIGHT*CELL_SIZE)
+#define SCORE_OFFSET ((FIELD_OFFSET-5*Font8.Width)/2)
 static_assert(FIELD_OFFSET > 0);
-static_assert(HEADER_HEIGHT > 0);
+static_assert(HEADER_HEIGHT + CELL_SIZE * FIELD_HEIGHT + 1 <= LCD_WIDTH);
 
 #define COLOR_CELL  0x8410 // 50% gray
 #define COLOR_LIGHT 0xC618 // 75% gray
@@ -86,6 +88,7 @@ typedef enum _tetris_rotation {
 } tetris_rotation_t;
 
 typedef struct _tetris_application_data {
+    uint8_t score;
     uint8_t piece_x;
     uint8_t piece_y;
     tetris_shape_t piece_shape;
@@ -132,6 +135,14 @@ static void tetris_draw_or_erase(draw_or_erase_t command, const tetris_point_t *
     }
 }
 
+static void tetris_draw_score(void) {
+    char buf[3] = { '0' + APP_DATA->score / 10, '0' + APP_DATA->score %10, '\0' };
+    bool double_digit = APP_DATA->score >= 10;
+    pico_ui_draw_string(double_digit ? buf : buf+1,
+        (FIELD_OFFSET-(double_digit ? 2 : 1)*Font16.Width)/2, SCORE_OFFSET + 11,
+        &Font16, COLOR_RED, COLOR_BLACK);
+}
+
 static void tetris_advance(void) {
     APP_DATA->piece_x = FIELD_WIDTH/2 - 1;
     APP_DATA->piece_y = 0;
@@ -153,9 +164,13 @@ static void tetris_advance(void) {
 
 static void tetris_start(void) {
     pico_lcd_clear();
-    pico_lcd_fill_rect(FIELD_OFFSET, FIELD_OFFSET, HEADER_HEIGHT, LCD_HEIGHT-1, COLOR_GRAY);
-    pico_lcd_fill_rect(FIELD_OFFSET, LCD_WIDTH-FIELD_OFFSET, LCD_HEIGHT-1, LCD_HEIGHT-1, COLOR_GRAY);
-    pico_lcd_fill_rect(LCD_WIDTH-FIELD_OFFSET, LCD_WIDTH-FIELD_OFFSET, HEADER_HEIGHT, LCD_HEIGHT-1, COLOR_GRAY);
+    pico_lcd_fill_rect(FIELD_OFFSET, FIELD_OFFSET, HEADER_HEIGHT, FIELD_END, COLOR_GRAY);
+    pico_lcd_fill_rect(FIELD_OFFSET, LCD_WIDTH-FIELD_OFFSET, FIELD_END, FIELD_END, COLOR_GRAY);
+    pico_lcd_fill_rect(LCD_WIDTH-FIELD_OFFSET, LCD_WIDTH-FIELD_OFFSET, HEADER_HEIGHT, FIELD_END, COLOR_GRAY);
+
+    pico_ui_draw_rect(SCORE_OFFSET-2, FIELD_OFFSET-SCORE_OFFSET+2, SCORE_OFFSET-2, FIELD_OFFSET-SCORE_OFFSET+2, COLOR_GRAY);
+    pico_ui_draw_string("LINES", SCORE_OFFSET, SCORE_OFFSET, &Font8, COLOR_WHITE, COLOR_BLACK);
+    tetris_draw_score();
     tetris_advance();
 }
 
@@ -208,6 +223,62 @@ static bool tetris_try_move_piece(tetris_point_t *cells, int dx, int dy) {
     return true;
 }
 
+static inline void tetris_erase_complete_lines(void) {
+    bool filled[FIELD_HEIGHT];
+    for (int y = 0; y < FIELD_HEIGHT; y++) {
+        filled[y] = true;
+        for (int x = 0; x < FIELD_WIDTH; x++) {
+            if (!APP_DATA->field[x][y]) {
+                filled[y] = false;
+                break;
+            }
+        }
+        // update APP_DATA->field
+        if (filled[y]) {
+            for (int x = 0; x < FIELD_WIDTH; x++) {
+                APP_DATA->field[x][y] = false;
+            }
+            APP_DATA->score++;
+        }
+    }
+
+    // erase lines with animation to match APP_DATA->field
+    for (int x = FIELD_OFFSET + 1; x < LCD_WIDTH - FIELD_OFFSET - 1; x++) {
+        for (int y = 0; y < FIELD_HEIGHT; y++) {
+            if (filled[y]) {
+                pico_lcd_fill_rect(x, x, HEADER_HEIGHT + y * CELL_SIZE, HEADER_HEIGHT + (y+1) * CELL_SIZE - 1, COLOR_BLACK);
+            }
+        }
+        sleep_ms(3);
+    }
+
+    for (int y = FIELD_HEIGHT-1, y2 = FIELD_HEIGHT-1; y >= 0; y--, y2--) {
+        // ensure row y2 is not filled
+        while (y2 >= 0 && filled[y2]) {
+            y2--;
+        }
+        if (y != y2) {
+            for (int x = 0; x < FIELD_WIDTH; x++) {
+                // update screen
+                bool is = APP_DATA->field[x][y];
+                bool should = y2 >= 0 && APP_DATA->field[x][y2];
+                if (is && !should) {
+                    tetris_point_t p = { x, y };
+                    tetris_draw_or_erase(ERASE, &p, 1);
+                    APP_DATA->field[x][y] = false;
+                } else if (should && !is) {
+                    tetris_point_t p = { x, y };
+                    tetris_draw_or_erase(DRAW, &p, 1);
+                    APP_DATA->field[x][y] = true;
+                }
+            }
+        }
+    }
+
+    // update score
+    tetris_draw_score();
+}
+
 static void tetris_run(void) {
     sleep_ms(100);
 
@@ -226,6 +297,7 @@ static void tetris_run(void) {
             for (int i = 0; i < 4; i++) {
                 APP_DATA->field[cells[i].x][cells[i].y] = true;
             }
+            tetris_erase_complete_lines();
             tetris_advance();
         }
         APP_DATA->frame_num = 0;
