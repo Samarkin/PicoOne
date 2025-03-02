@@ -5,6 +5,9 @@
 #include "pico_lcd.h"
 #include "pico_ui.h"
 
+// Number of lines to pre-fill
+#define DEBUG_CHEAT_LEVEL 0
+
 #define CELL_SIZE 12
 #define FIELD_WIDTH 10
 #define FIELD_HEIGHT 19
@@ -173,6 +176,16 @@ static void tetris_start(void) {
     pico_ui_draw_string("LINES", SCORE_OFFSET, SCORE_OFFSET, &Font8, COLOR_WHITE, COLOR_BLACK);
     tetris_draw_score();
     tetris_advance();
+
+    tetris_point_t c;
+    for (int j = 0; j < DEBUG_CHEAT_LEVEL; j++) {
+        c.y = FIELD_HEIGHT - 1 - j;
+        for (int i = 1; i < FIELD_WIDTH; i++) {
+            c.x = i;
+            APP_DATA->field[c.x][c.y] = true;
+            tetris_draw_or_erase(DRAW, &c, 1);
+        }
+    }
 }
 
 static bool tetris_try_replace_piece(tetris_point_t *cells, tetris_point_t *new_cells) {
@@ -247,6 +260,7 @@ static bool tetris_try_move_piece(tetris_point_t *cells, int dx, int dy) {
 
 static inline void tetris_erase_complete_lines(void) {
     bool filled[FIELD_HEIGHT];
+    int filled_count = 0;
     for (int y = 0; y < FIELD_HEIGHT; y++) {
         filled[y] = true;
         for (int x = 0; x < FIELD_WIDTH; x++) {
@@ -260,18 +274,41 @@ static inline void tetris_erase_complete_lines(void) {
             for (int x = 0; x < FIELD_WIDTH; x++) {
                 APP_DATA->field[x][y] = false;
             }
+            filled_count++;
             APP_DATA->score++;
         }
     }
 
-    // erase lines with animation to match APP_DATA->field
-    for (int x = FIELD_OFFSET + 1; x < LCD_WIDTH - FIELD_OFFSET - 1; x++) {
-        for (int y = 0; y < FIELD_HEIGHT; y++) {
-            if (filled[y]) {
-                pico_lcd_fill_rect(x, x, HEADER_HEIGHT + y * CELL_SIZE, HEADER_HEIGHT + (y+1) * CELL_SIZE - 1, COLOR_BLACK);
+    // erase lines  animation to match APP_DATA->field
+    char* message = "";
+    if (filled_count == 0) {
+        return;
+    } else if (filled_count == 1) {
+        message = "      LINE!";
+    } else if (filled_count == 2) {
+        message = "  DOUBLE LINE!!";
+    } else if (filled_count == 3) {
+        message = "  TRIPLE LINE!!!";
+    } else if (filled_count == 4) {
+        message = "  QUADRUPLE!!!!";
+    }
+    int msg_len = strlen(message);
+    for (int draw_message = 1; draw_message >= 0; draw_message--) {
+        for (int x = 0; x < FIELD_WIDTH * CELL_SIZE; x++) {
+            for (int y = 0; y < FIELD_HEIGHT; y++) {
+                if (filled[y]) {
+                    int px = x + FIELD_OFFSET + 1;
+                    int py = HEADER_HEIGHT + y * CELL_SIZE;
+                    pico_lcd_fill_rect(px, px, py, py + CELL_SIZE - 1, COLOR_BLACK);
+                    if (draw_message && x > 0 && x % Font12.Width == 0 && x/Font12.Width - 1 < msg_len) {
+                        pico_ui_draw_char(message[x/Font12.Width - 1],
+                            px - Font12.Width, py,
+                            &Font12, COLOR_WHITE, COLOR_BLACK);
+                    }
+                }
             }
+            sleep_ms(3);
         }
-        sleep_ms(3);
     }
 
     for (int y = FIELD_HEIGHT-1, y2 = FIELD_HEIGHT-1; y >= 0; y--, y2--) {
@@ -310,7 +347,7 @@ static void tetris_run(void) {
         tetris_try_move_piece(cells, -1, 0);
     } else if (pico_lcd_is_pressed(KEY_RIGHT)) {
         tetris_try_move_piece(cells, 1, 0);
-    } else if (pico_lcd_is_pressed(KEY_DOWN)) {
+    } else if (pico_lcd_is_pressed(KEY_DOWN) || pico_lcd_is_pressed(KEY_Y)) {
         APP_DATA->frame_num = 10;
     }
 
