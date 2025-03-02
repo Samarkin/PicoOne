@@ -136,6 +136,7 @@ static void tetris_draw_or_erase(draw_or_erase_t command, const tetris_point_t *
 }
 
 static void tetris_draw_score(void) {
+    APP_DATA->score %= 100; // reset score as it reaches 100
     char buf[3] = { '0' + APP_DATA->score / 10, '0' + APP_DATA->score %10, '\0' };
     bool double_digit = APP_DATA->score >= 10;
     pico_ui_draw_string(double_digit ? buf : buf+1,
