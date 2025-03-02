@@ -31,52 +31,52 @@ typedef enum _tetris_shape {
 } tetris_shape_t;
 
 typedef struct _tetris_point {
-    uint8_t x;
-    uint8_t y;
+    int8_t x;
+    int8_t y;
 } tetris_point_t;
 
-static const tetris_point_t tetris_shape[_SHAPE_COUNT][4] = {
-    { // SHAPE_O
-        { 0,0 },
-        { 0,1 },
-        { 1,0 },
-        { 1,1 },
+static const tetris_point_t tetris_shape[_SHAPE_COUNT][4][4] = {
+    { // SHAPE_O - no rotation
+        { { 0,0 }, { 0,1 }, { 1,0 }, { 1,1 } },
+        { { 0,0 }, { 0,1 }, { 1,0 }, { 1,1 } }, // repeat
+        { { 0,0 }, { 0,1 }, { 1,0 }, { 1,1 } }, // repeat
+        { { 0,0 }, { 0,1 }, { 1,0 }, { 1,1 } }, // repeat
     },
-    { // SHAPE_T
-        { 0,0 },
-        { 0,1 },
-        { 0,2 },
-        { 1,1 },
+    { // SHAPE_T - 4 rotations
+        { { 1,0 }, { 1,1 }, { 1,2 }, { 2,1 } },
+        { { 0,1 }, { 1,1 }, { 2,1 }, { 1,2 } },
+        { { 1,0 }, { 1,1 }, { 1,2 }, { 0,1 } },
+        { { 0,1 }, { 1,1 }, { 2,1 }, { 1,0 } },
     },
-    { // SHAPE_J
-        { 0,0 },
-        { 0,1 },
-        { 0,2 },
-        { 1,2 },
+    { // SHAPE_J - 4 rotations
+        { { 1,0 }, { 1,1 }, { 1,2 }, { 0,2 } },
+        { { 0,1 }, { 1,1 }, { 2,1 }, { 0,0 } },
+        { { 1,0 }, { 1,1 }, { 1,2 }, { 2,0 } },
+        { { 0,1 }, { 1,1 }, { 2,1 }, { 2,2 } },
     },
-    { // SHAPE_L
-        { 0,0 },
-        { 0,1 },
-        { 0,2 },
-        { 1,0 },
+    { // SHAPE_L - 4 rotations
+        { { 1,0 }, { 1,1 }, { 1,2 }, { 2,2 } },
+        { { 0,1 }, { 1,1 }, { 2,1 }, { 2,0 } },
+        { { 1,0 }, { 1,1 }, { 1,2 }, { 0,0 } },
+        { { 0,1 }, { 1,1 }, { 2,1 }, { 0,2 } },
     },
-    { // SHAPE_I
-        { 0,0 },
-        { 0,1 },
-        { 0,2 },
-        { 0,3 },
+    { // SHAPE_I - 2 rotations
+        { { 1,0 }, { 1,1 }, { 1,2 }, { 1,3 } },
+        { { 0,1 }, { 1,1 }, { 2,1 }, { 3,1 } },
+        { { 1,0 }, { 1,1 }, { 1,2 }, { 1,3 } }, // repeat
+        { { 0,1 }, { 1,1 }, { 2,1 }, { 3,1 } }, // repeat
     },
-    { // SHAPE_Z
-        { 0,0 },
-        { 0,1 },
-        { 1,1 },
-        { 1,2 },
+    { // SHAPE_Z - 2 rotations
+        { { 1,0 }, { 1,1 }, { 2,1 }, { 2,2 } },
+        { { 0,1 }, { 1,1 }, { 1,0 }, { 2,0 } },
+        { { 1,0 }, { 1,1 }, { 2,1 }, { 2,2 } }, // repeat
+        { { 0,1 }, { 1,1 }, { 1,0 }, { 2,0 } }, // repeat
     },
-    { // SHAPE_S
-        { 0,1 },
-        { 0,2 },
-        { 1,0 },
-        { 1,1 },
+    { // SHAPE_S - 2 rotations
+        { { 1,1 }, { 1,2 }, { 2,0 }, { 2,1 } },
+        { { 0,0 }, { 1,0 }, { 1,1 }, { 2,1 } },
+        { { 1,1 }, { 1,2 }, { 2,0 }, { 2,1 } }, // repeat
+        { { 0,0 }, { 1,0 }, { 1,1 }, { 2,1 } }, // repeat
     },
 };
 
@@ -89,23 +89,23 @@ typedef enum _tetris_rotation {
 
 typedef struct _tetris_application_data {
     uint8_t score;
-    uint8_t piece_x;
-    uint8_t piece_y;
+    int8_t piece_x;
+    int8_t piece_y;
     tetris_shape_t piece_shape;
     tetris_rotation_t piece_rotation;
     bool field[FIELD_WIDTH][FIELD_HEIGHT];
     uint8_t frame_num;
+    bool is_down;
 } tetris_application_data_t;
 
 #define APP_DATA ((tetris_application_data_t*)pico_application_data)
 
-static void tetris_get_cells(tetris_point_t *cells) {
-    memcpy(cells, tetris_shape[APP_DATA->piece_shape], sizeof(tetris_shape[APP_DATA->piece_shape]));
+static void tetris_get_cells(tetris_point_t *cells, tetris_rotation_t rotation) {
     for (int i = 0; i < 4; i++) {
+        cells[i] = tetris_shape[APP_DATA->piece_shape][rotation][i];
         cells[i].x += APP_DATA->piece_x;
         cells[i].y += APP_DATA->piece_y;
     }
-    // TODO: Add rotation
 }
 
 typedef enum _DRAW_OR_ERASE {
@@ -144,17 +144,17 @@ static void tetris_draw_score(void) {
 }
 
 static void tetris_advance(void) {
-    APP_DATA->piece_x = FIELD_WIDTH/2 - 1;
+    APP_DATA->piece_x = (FIELD_WIDTH-4)/2;
     APP_DATA->piece_y = 0;
     APP_DATA->piece_shape = time_us_32() % _SHAPE_COUNT;
-    APP_DATA->piece_rotation = time_us_32() % 4;
+    APP_DATA->piece_rotation = 0;
 
     tetris_point_t cells[4];
-    tetris_get_cells(cells);
+    tetris_get_cells(cells, APP_DATA->piece_rotation);
     for (int i = 0; i < 4; i++) {
         if (APP_DATA->field[cells[i].x][cells[i].y]) {
             pico_ui_draw_string("GAME\nOVER", LCD_WIDTH/2-2*Font24.Width, LCD_HEIGHT/2-Font24.Height,
-                &Font24, COLOR_RED, COLOR_BLACK); 
+                &Font24, COLOR_RED, COLOR_BLACK);
             while (!pico_lcd_is_pressed(KEY_A));
             pico_application_stop();
         }
@@ -174,14 +174,12 @@ static void tetris_start(void) {
     tetris_advance();
 }
 
-static bool tetris_try_move_piece(tetris_point_t *cells, int dx, int dy) {
+static bool tetris_try_replace_piece(tetris_point_t *cells, tetris_point_t *new_cells) {
     for (int i = 0; i < 4; i++) {
-        int cell_x = cells[i].x + dx;
-        int cell_y = cells[i].y + dy;
-        if (cell_x < 0 || cell_x > FIELD_WIDTH - 1 ||
-            cell_y > FIELD_HEIGHT - 1 || APP_DATA->field[cell_x][cell_y])
+        if (new_cells[i].x < 0 || new_cells[i].x > FIELD_WIDTH - 1 ||
+            new_cells[i].y > FIELD_HEIGHT - 1 || APP_DATA->field[new_cells[i].x][new_cells[i].y])
         {
-            // can't move
+            // can't replace
             return false;
         }
     }
@@ -197,16 +195,14 @@ static bool tetris_try_move_piece(tetris_point_t *cells, int dx, int dy) {
         field[x][y] = true;
     }
     for (int i = 0; i < 4; i++) {
-        cells[i].x += dx;
-        cells[i].y += dy;
-        int x = cells[i].x-APP_DATA->piece_x;
-        int y = cells[i].y-APP_DATA->piece_y;
+        int x = new_cells[i].x-APP_DATA->piece_x;
+        int y = new_cells[i].y-APP_DATA->piece_y;
         if (x >= 0 && x < 4 && y >= 0 && y < 4 && field[x][y]) {
             // If the new cell was already occupied, mark it as used
             field[x][y] = false;
         } else {
             // If the new cell was not occupied yet, draw it
-            tetris_draw_or_erase(DRAW, &cells[i], 1);
+            tetris_draw_or_erase(DRAW, &new_cells[i], 1);
         }
     }
     // Erase all cells that existed but were not reused
@@ -218,8 +214,33 @@ static bool tetris_try_move_piece(tetris_point_t *cells, int dx, int dy) {
             }
         }
     }
+    return true;
+}
+
+static bool tetris_try_rotate_piece(tetris_point_t *cells) {
+    tetris_point_t new_cells[4];
+    tetris_rotation_t new_rotation = (APP_DATA->piece_rotation + 1) % 4;
+    tetris_get_cells(new_cells, new_rotation);
+    if (!tetris_try_replace_piece(cells, new_cells)) {
+        return false;
+    }
+    APP_DATA->piece_rotation = new_rotation;
+    memcpy(cells, new_cells, sizeof(new_cells));
+    return true;
+}
+
+static bool tetris_try_move_piece(tetris_point_t *cells, int dx, int dy) {
+    tetris_point_t new_cells[4];
+    for (int i = 0; i < 4; i ++) {
+        new_cells[i].x = cells[i].x + dx;
+        new_cells[i].y = cells[i].y + dy;
+    }
+    if (!tetris_try_replace_piece(cells, new_cells)) {
+        return false;
+    }
     APP_DATA->piece_x += dx;
     APP_DATA->piece_y += dy;
+    memcpy(cells, new_cells, sizeof(new_cells));
     return true;
 }
 
@@ -283,13 +304,20 @@ static void tetris_run(void) {
     sleep_ms(100);
 
     tetris_point_t cells[4];
-    tetris_get_cells(cells);
+    tetris_get_cells(cells, APP_DATA->piece_rotation);
     if (pico_lcd_is_pressed(KEY_LEFT)) {
         tetris_try_move_piece(cells, -1, 0);
     } else if (pico_lcd_is_pressed(KEY_RIGHT)) {
         tetris_try_move_piece(cells, 1, 0);
     } else if (pico_lcd_is_pressed(KEY_DOWN)) {
         APP_DATA->frame_num = 10;
+    }
+
+    if (pico_lcd_is_pressed(KEY_A) && !APP_DATA->is_down) {
+        tetris_try_rotate_piece(cells);
+        APP_DATA->is_down = true;
+    } else {
+        APP_DATA->is_down = false;
     }
 
     if (APP_DATA->frame_num >= 10) {
